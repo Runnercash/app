@@ -42,7 +42,7 @@
     <h2>Game Over!</h2>
     <h3 id="resultMessage"></h3>
     <p>Your Score: <span id="finalPlayerScore">0</span></p>
-    <p>Opponent Score: <span id="finalOpponentScore">0</span></p>
+    <p style="display: none;">Opponent Score: <span id="finalOpponentScore">0</span></p>
   </div>
 </div>
 <audio id="roomSound" src="waiting.mp3" loop></audio>
@@ -60,6 +60,7 @@ const firebaseConfig = {
   appId: "1:1031850851385:web:18b5f866661aed34f3a1e8",
   measurementId: "G-3QM94CVCKY"
 };
+
 firebase.initializeApp(firebaseConfig);
 const database = firebase.database();
 const scriptUrl = "https://script.google.com/macros/s/AKfycbxLcYNPCTAXPMvcu5IOjCkf1-YXPoo5ek0oXZmVQZid5x5IepK3t-1MLuyCPEQZnvGF/exec";
@@ -85,6 +86,9 @@ let canvas, ctx;
 let waitingInterval;
 let gameInterval;
 let zombieInterval;
+let botInterval;
+let botMode = false;
+const botNames = ["ZombieBot", "DeadHunter", "ZombieSlayer", "DeadEye", "BrainEater", "QuizBot", "BrainMaster", "QuickThink", "MatchGenius", "NumberWiz"];
 
 class Zombie {
   constructor(type, x, y) {
@@ -215,7 +219,7 @@ function joinWaitingRoom() {
     });
   });
   
-  let waitingTime = 20;
+  let waitingTime = 15;
   document.getElementById("waitingTime").textContent = waitingTime;
   waitingInterval = setInterval(() => {
     waitingTime--;
@@ -226,15 +230,18 @@ function joinWaitingRoom() {
   setTimeout(() => {
     if (!gameStarted) {
       database.ref(`waitingRoom/${userId}`).remove().then(() => {
-        fetch(scriptUrl, { method: "POST", body: JSON.stringify({ action: "refundCoins", email: userEmail, entryFee: entryFee }) })
-        .then(response => response.json())
-        .then(data => {
-          alert("Match Not Found.");
-          window.location.href = "index.html";
-        });
+        startBotMatch();
       });
     }
-  }, 20000);
+  }, 15000);
+}
+
+function startBotMatch() {
+  botMode = true;
+  opponentId = "bot_" + Date.now();
+  const randomIndex = Math.floor(Math.random() * botNames.length);
+  opponentEmail = botNames[randomIndex];
+  createMatch(userId, opponentId);
 }
 
 function listenForMatches() {
@@ -246,12 +253,18 @@ function listenForMatches() {
       Object.keys(match.players).forEach(playerId => {
         if (playerId !== userId) {
           opponentId = playerId;
-          database.ref(`waitingRoom/${opponentId}`).once('value', snapshot => {
-            if (snapshot.exists()) opponentEmail = snapshot.val().email;
-            document.getElementById("opponentEmail").textContent = opponentEmail || opponentId;
+          if (playerId.startsWith('bot_')) {
+            document.getElementById("opponentEmail").textContent = opponentEmail;
             clearInterval(waitingInterval);
             startGame();
-          });
+          } else {
+            database.ref(`waitingRoom/${opponentId}`).once('value', snapshot => {
+              if (snapshot.exists()) opponentEmail = snapshot.val().email;
+              document.getElementById("opponentEmail").textContent = opponentEmail || opponentId;
+              clearInterval(waitingInterval);
+              startGame();
+            });
+          }
         }
       });
     }
@@ -301,8 +314,48 @@ function startGame() {
     }
   });
 
+  if (botMode) {
+    simulateBotPlay();
+  }
+
   startGameTimer();
   zombieInterval = setInterval(spawnZombies, 1500);
+}
+
+function simulateBotPlay() {
+  let botTargetScore = 0;
+  let botSkillLevel = 1;
+  
+  if (opponentEmail === "QuizBot") {
+    botTargetScore = 50;
+    botSkillLevel = 0.8;
+  } else if (opponentEmail === "BrainMaster") {
+    botTargetScore = 23;
+    botSkillLevel = 0.5;
+  } else if (opponentEmail === "QuickThink") {
+    botTargetScore = 300;
+    botSkillLevel = 1.5;
+  } else if (opponentEmail === "MatchGenius") {
+    botTargetScore = 350;
+    botSkillLevel = 1.8;
+  } else if (opponentEmail === "NumberWiz") {
+    botTargetScore = 400;
+    botSkillLevel = 2;
+  } else {
+    botTargetScore = Math.floor(Math.random() * 200) + 100;
+    botSkillLevel = Math.random() * 1.5 + 0.5;
+  }
+  
+  const scoreIncrement = Math.ceil((botTargetScore / gameTimer) * botSkillLevel);
+  
+  botInterval = setInterval(() => {
+    const variableFactor = Math.random() * 0.5 + 0.75;
+    const actualIncrement = Math.floor(scoreIncrement * variableFactor);
+    
+    opponentScore += actualIncrement;
+    database.ref(`matches/${matchId}/scores/${opponentId}`).set(opponentScore);
+    document.getElementById("opponentScore").textContent = opponentScore;
+  }, 1000);
 }
 
 function startGameTimer() {
@@ -312,6 +365,7 @@ function startGameTimer() {
     if (gameTimer <= 0) {
       clearInterval(gameInterval);
       clearInterval(zombieInterval);
+      if (botMode) clearInterval(botInterval);
       endGame();
     }
   }, 1000);
@@ -320,7 +374,42 @@ function startGameTimer() {
 function endGame() {
   document.getElementById("gameScreen").style.display = "none";
   document.getElementById("resultScreen").style.display = "flex";
-  document.getElementById("finalPlayerScore").textContent = playerScore;
+  
+  let finalOpponentScore = opponentScore;
+  let userWins = false;
+  
+  if (botMode) {
+    if (opponentEmail === "QuizBot") {
+      finalOpponentScore = 50;
+      userWins = true;
+    } else if (opponentEmail === "BrainMaster") {
+      finalOpponentScore = 23;
+      userWins = true;
+    } else if (opponentEmail === "QuickThink") {
+      finalOpponentScore = playerScore + 50;
+      userWins = false;
+    } else if (opponentEmail === "MatchGenius") {
+      finalOpponentScore = playerScore + 100;
+      userWins = false;
+    } else if (opponentEmail === "NumberWiz") {
+      finalOpponentScore = playerScore + 149;
+      userWins = false;
+    } else {
+      const chanceToWin = Math.random();
+      if (chanceToWin > 0.5) {
+        finalOpponentScore = Math.max(0, playerScore - Math.floor(Math.random() * 50) - 1);
+        userWins = true;
+      } else {
+        finalOpponentScore = playerScore + Math.floor(Math.random() * 50) + 1;
+        userWins = false;
+      }
+    }
+    
+    opponentScore = finalOpponentScore;
+    database.ref(`matches/${matchId}/scores/${opponentId}`).set(opponentScore);
+  }
+  
+  document.getElementById("opponentScore").textContent = opponentScore;
   document.getElementById("finalOpponentScore").textContent = opponentScore;
   let resultMessage;
 
@@ -334,28 +423,34 @@ function endGame() {
         alert("You Won " + data.winningAmount + " Coins!");
         let userProfit = parseInt(data.winningAmount) - parseInt(entryFee);
         saveResult(userEmail, entryFee, userProfit, "Won");
-        saveResult(opponentEmail, entryFee, -parseInt(entryFee), "Lose");
+        if (!botMode) {
+          saveResult(opponentEmail, entryFee, -parseInt(entryFee), "Lose");
+        }
       }
     });
   } else if (playerScore < opponentScore) {
     resultMessage = "You Lost. Better luck next time!";
     lossSound.play().catch(e => console.log(e));
-    fetch(scriptUrl, { method: "POST", body: JSON.stringify({ action: "awardWinnings", email: opponentEmail, entryFee: entryFee }) })
-    .then(response => response.json())
-    .then(data => {
-      if (data.status === "success") {
-        alert("Opponent Won " + data.winningAmount + " Coins!");
-        let oppProfit = parseInt(data.winningAmount) - parseInt(entryFee);
-        saveResult(userEmail, entryFee, -parseInt(entryFee), "Lose");
-        saveResult(opponentEmail, entryFee, oppProfit, "Won");
-      }
-    });
+    if (!botMode) {
+      fetch(scriptUrl, { method: "POST", body: JSON.stringify({ action: "awardWinnings", email: opponentEmail, entryFee: entryFee }) })
+      .then(response => response.json())
+      .then(data => {
+        if (data.status === "success") {
+          alert("Opponent Won " + data.winningAmount + " Coins!");
+          let oppProfit = parseInt(data.winningAmount) - parseInt(entryFee);
+          saveResult(opponentEmail, entryFee, oppProfit, "Won");
+        }
+      });
+    }
+    saveResult(userEmail, entryFee, -parseInt(entryFee), "Lose");
   } else {
     resultMessage = "It's a Tie!";
     saveResult(userEmail, entryFee, 0, "Tie");
-    saveResult(opponentEmail, entryFee, 0, "Tie");
+    if (!botMode) {
+      saveResult(opponentEmail, entryFee, 0, "Tie");
+      fetch(scriptUrl, { method: "POST", body: JSON.stringify({ action: "refundCoins", email: opponentEmail, entryFee: entryFee }) });
+    }
     fetch(scriptUrl, { method: "POST", body: JSON.stringify({ action: "refundCoins", email: userEmail, entryFee: entryFee }) });
-    fetch(scriptUrl, { method: "POST", body: JSON.stringify({ action: "refundCoins", email: opponentEmail, entryFee: entryFee }) });
   }
   
   document.getElementById("resultMessage").textContent = resultMessage;
