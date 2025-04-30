@@ -79,15 +79,11 @@
     <p><b>Transaction ID:</b> <span id="transactionID"></span></p>
     <p><b>Time Left:</b> <span id="timer">5:00</span></p>
     <div id="qrCode"></div><br>
-
     <label for="proof">Upload Payment Proof:</label>
     <input type="file" id="proof"><br><br>
-
     <button onclick="submitPayment()" class="done">Done</button>
 </div>
-
 <div id="loader"><div class="loader"></div></div>
-
 <script>
     let selectedPaymentMethod = "";
 
@@ -113,8 +109,8 @@
             alert("User not logged in!");
             return;
         }
-        if (!amount || amount <= 0) {
-            alert("Please enter a valid amount!");
+        if (!amount || amount < 100) {
+            alert("Minimum amount is ₹100!");
             return;
         }
         if (!selectedPaymentMethod) {
