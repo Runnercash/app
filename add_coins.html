@@ -54,7 +54,7 @@
         <span id="userEmail" style="display: none;"></span>
     </div>
     <label>Enter Amount:</label>
-    <input type="number" id="amount" placeholder="Enter Amount (Min 100):" class="int" required min="100">
+    <input type="number" id="amount" placeholder="Enter Amount (Min 10):" class="int" required min="10">
     <label>Select Payment Method:</label>
     <div class="payment-methods">
         <div class="payment-button" onclick="selectPaymentMethod(this, 'PhonePe')">
@@ -113,8 +113,8 @@
             alert("User not logged in!");
             return;
         }
-        if (!amount || amount <= 100) {
-            alert("Minimum amount is ₹100!");
+        if (!amount || amount <= 0) {
+            alert("Please enter a valid amount!");
             return;
         }
         if (!selectedPaymentMethod) {
@@ -136,7 +136,7 @@
             let transactionID = generateTransactionID();
             document.getElementById("transactionID").innerText = transactionID;
 
-            let qrData = upi://pay?pa=${data.upiID}&pn=${data.merchantName}&am=${amount}&cu=INR;
+            let qrData = `upi://pay?pa=${data.upiID}&pn=${data.merchantName}&am=${amount}&cu=INR`;
             document.getElementById("qrCode").innerHTML = ""; 
             new QRCode(document.getElementById("qrCode"), qrData);
 
@@ -167,7 +167,7 @@
         let interval = setInterval(() => {
             let minutes = Math.floor(time / 60);
             let seconds = time % 60;
-            timerElement.innerText = ${minutes}:${seconds < 10 ? "0" : ""}${seconds};
+            timerElement.innerText = `${minutes}:${seconds < 10 ? "0" : ""}${seconds}`;
             if (time-- <= 0) clearInterval(interval);
         }, 1000);
     }
